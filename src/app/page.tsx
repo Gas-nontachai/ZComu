@@ -1,20 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/components/providers/auth-provider";
+import { useHomePage } from "@/hooks/use-home-page";
 
 export default function Home() {
-  const router = useRouter();
-  const { user, loading } = useAuth();
-
-  useEffect(() => {
-    if (!loading && user) {
-      router.replace("/feed");
-    }
-  }, [loading, router, user]);
+  const { exploreFeed } = useHomePage();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-linear-to-b from-slate-900 via-slate-800 to-slate-900 px-6 text-white">
@@ -39,7 +30,7 @@ export default function Home() {
           <Button
             variant="ghost"
             size="lg"
-            onClick={() => router.push("/feed")}
+            onClick={exploreFeed}
           >
             Explore the feed
           </Button>
