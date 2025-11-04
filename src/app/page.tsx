@@ -17,7 +17,7 @@ export default function Home() {
   }, [loading, router, user]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 px-6 text-white">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-linear-to-b from-slate-900 via-slate-800 to-slate-900 px-6 text-white">
       <div className="w-full max-w-4xl space-y-10 text-center">
         <div className="space-y-6">
           <p className="inline-block rounded-full border border-white/10 bg-white/5 px-4 py-1 text-sm uppercase tracking-[0.2em] text-slate-200">
