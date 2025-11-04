@@ -1,27 +1,30 @@
-import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
   badRequest,
   getAccessTokenFromRequest,
   handleRouteError,
+  HttpError,
 } from "@/lib/api-helpers";
 import { createServiceSupabaseClient } from "@/lib/supabase-server";
-
-const MIN_USERNAME_LENGTH = 3;
+import { bootstrapProfile } from "@/lib/profile-bootstrap";
+import type { PostgrestError } from "@supabase/supabase-js";
 
 type BootstrapProfilePayload = {
   id?: string;
   email?: string | null;
   metadata?: Record<string, unknown>;
 };
-
-function slugifyUsername(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9_]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
+export type Profile = {
+  id: string;
+  username: string;
+  display_name: string;
+  bio: string | null;
+  avatar_url: string | null;
+  cover_url: string | null;
+  is_verified: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,105 +36,45 @@ export async function POST(request: NextRequest) {
       badRequest("User id is required");
     }
 
-    const supabase = createServiceSupabaseClient();
-
-    const usernameCandidates: string[] = [];
-
-    const metadataUsername = [
-      "username",
-      "preferred_username",
-      "user_name",
-      "user_metadata",
-    ]
-      .map((key) => {
-        const value = metadata && typeof metadata === "object" ? metadata[key as keyof typeof metadata] : undefined;
-        return typeof value === "string" ? value : undefined;
-      })
-      .find((value): value is string => Boolean(value));
-
-    if (metadataUsername) {
-      usernameCandidates.push(metadataUsername);
-    }
-
-    const emailPrefix = email?.split("@")[0];
-    if (emailPrefix) {
-      usernameCandidates.push(emailPrefix);
-    }
-
-    usernameCandidates.push(`user_${id.slice(0, 8)}`);
-
-    const baseUsername =
-      usernameCandidates
-        .map((candidate) => slugifyUsername(candidate))
-        .find((candidate) => candidate.length >= MIN_USERNAME_LENGTH) ??
-      `user_${id.slice(0, 8)}`;
-
-    let username = baseUsername;
-    let attempt = 0;
-
-    while (true) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("username", username)
-        .maybeSingle();
-
-      if (error) {
-        throw error;
+    let supabase;
+    try {
+      supabase = createServiceSupabaseClient();
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "SUPABASE_SERVICE_ROLE_KEY is not configured"
+      ) {
+        throw new HttpError(
+          500,
+          "SUPABASE_SERVICE_ROLE_KEY must be configured to bootstrap profiles"
+        );
       }
-
-      if (!data || data.id === id) {
-        break;
-      }
-
-      attempt += 1;
-      if (attempt < 5) {
-        username = `${baseUsername}_${attempt}`;
-      } else {
-        username = `${baseUsername}_${randomUUID().slice(0, 4)}`;
-      }
+      throw error;
     }
 
-    const displayNameCandidates = [
-      (metadata as Record<string, unknown>)?.["full_name"],
-      (metadata as Record<string, unknown>)?.["name"],
-      metadataUsername,
-      emailPrefix,
-    ]
-      .map((value) => (typeof value === "string" ? value.trim() : undefined))
-      .filter((value): value is string => Boolean(value));
-
-    const displayName =
-      displayNameCandidates.find(Boolean) ?? `New user ${username}`;
-
-    const { data: profile, error: upsertError } = await supabase
-      .from("profiles")
-      .upsert(
-        {
-          id,
-          username,
-          display_name: displayName,
-        },
-        {
-          ignoreDuplicates: true,
-          onConflict: "id",
-        }
-      )
-      .select()
-      .maybeSingle();
-
-    if (upsertError) {
-      throw upsertError;
-    }
-
-    const responseProfile = profile ?? {
+    const profile = await bootstrapProfile({
+      supabase,
       id,
-      username,
-      display_name: displayName,
-    };
+      email,
+      metadata:
+        metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>) : null,
+    });
 
-    return NextResponse.json({ profile: responseProfile });
+    return NextResponse.json({ profile });
   } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as PostgrestError).code === "42501"
+    ) {
+      return handleRouteError(
+        new HttpError(
+          500,
+          "Failed to bootstrap profile due to Supabase RLS. Configure SUPABASE_SERVICE_ROLE_KEY."
+        )
+      );
+    }
     return handleRouteError(error);
   }
 }

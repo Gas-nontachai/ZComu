@@ -1,7 +1,1 @@
-export type {
-  ApiPost,
-  Attachment,
-  FeedComment,
-  FeedPost,
-  ProfileSummary,
-} from "./feed";
+export type * from "./feed";

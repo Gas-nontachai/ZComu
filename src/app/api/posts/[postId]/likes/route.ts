@@ -9,6 +9,7 @@ import {
   type RouteSupabaseClient,
 } from "@/lib/supabase-server";
 import type { ReactionType } from "@/lib/database.types";
+import type { LikeSummary } from "@/types";
 
 type LikePayload = {
   reaction_type?: ReactionType;
@@ -21,7 +22,7 @@ async function fetchLikesSnapshot(
 ) {
   const { data, error } = await supabase
     .from("likes")
-    .select("id, user_id, reaction_type, created_at")
+    .select<LikeSummary>("id, user_id, reaction_type, created_at")
     .eq("post_id", postId)
     .order("created_at", { ascending: false });
 

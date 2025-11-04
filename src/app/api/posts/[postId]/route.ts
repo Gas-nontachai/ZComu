@@ -6,6 +6,11 @@ import {
   HttpError,
 } from "@/lib/api-helpers";
 import { createRouteSupabaseClient } from "@/lib/supabase-server";
+import {
+  POST_WITH_RELATIONS,
+  toFeedPost,
+  type PostWithRelations,
+} from "@/lib/post-serializers";
 import type { Visibility } from "@/lib/database.types";
 
 type MediaPayload = {
@@ -41,51 +46,7 @@ export async function GET(
 
     const { data, error } = await supabase
       .from("posts")
-      .select(
-        `
-        id,
-        user_id,
-        content,
-        visibility,
-        edited,
-        created_at,
-        updated_at,
-        profiles:profiles!posts_user_id_fkey (
-          id,
-          username,
-          display_name,
-          avatar_url,
-          is_verified
-        ),
-        post_media (
-          id,
-          file_url,
-          file_type,
-          file_size,
-          storage_bucket,
-          created_at
-        ),
-        likes (
-          id,
-          user_id,
-          reaction_type,
-          created_at
-        ),
-        comments (
-          id,
-          user_id,
-          text,
-          parent_id,
-          created_at,
-          profiles:profiles!comments_user_id_fkey (
-            id,
-            username,
-            display_name,
-            avatar_url
-          )
-        )
-      `
-      )
+      .select<PostWithRelations>(POST_WITH_RELATIONS)
       .eq("id", postId)
       .single();
 
@@ -93,16 +54,8 @@ export async function GET(
       throw error;
     }
 
-    const likes = Array.isArray(data.likes) ? data.likes : [];
-    const comments = Array.isArray(data.comments) ? data.comments : [];
-
     return NextResponse.json({
-      post: {
-        ...data,
-        likes_count: likes.length,
-        comments_count: comments.length,
-        has_liked: likes.some((like) => like.user_id === user.id),
-      },
+      post: toFeedPost(data, user.id),
     });
   } catch (error) {
     return handleRouteError(error);
@@ -221,51 +174,7 @@ export async function PATCH(
 
     const { data: refreshed, error: fetchError } = await supabase
       .from("posts")
-      .select(
-        `
-        id,
-        user_id,
-        content,
-        visibility,
-        edited,
-        created_at,
-        updated_at,
-        profiles:profiles!posts_user_id_fkey (
-          id,
-          username,
-          display_name,
-          avatar_url,
-          is_verified
-        ),
-        post_media (
-          id,
-          file_url,
-          file_type,
-          file_size,
-          storage_bucket,
-          created_at
-        ),
-        likes (
-          id,
-          user_id,
-          reaction_type,
-          created_at
-        ),
-        comments (
-          id,
-          user_id,
-          text,
-          parent_id,
-          created_at,
-          profiles:profiles!comments_user_id_fkey (
-            id,
-            username,
-            display_name,
-            avatar_url
-          )
-        )
-      `
-      )
+      .select<PostWithRelations>(POST_WITH_RELATIONS)
       .eq("id", postId)
       .single();
 
@@ -273,16 +182,8 @@ export async function PATCH(
       throw fetchError;
     }
 
-    const likes = Array.isArray(refreshed.likes) ? refreshed.likes : [];
-    const comments = Array.isArray(refreshed.comments) ? refreshed.comments : [];
-
     return NextResponse.json({
-      post: {
-        ...refreshed,
-        likes_count: likes.length,
-        comments_count: comments.length,
-        has_liked: likes.some((like) => like.user_id === user.id),
-      },
+      post: toFeedPost(refreshed, user.id),
     });
   } catch (error) {
     return handleRouteError(error);

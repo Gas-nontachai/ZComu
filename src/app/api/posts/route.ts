@@ -6,6 +6,12 @@ import {
   HttpError,
 } from "@/lib/api-helpers";
 import { createRouteSupabaseClient } from "@/lib/supabase-server";
+import {
+  POST_WITH_RELATIONS,
+  toFeedPost,
+  toFeedPosts,
+  type PostWithRelations,
+} from "@/lib/post-serializers";
 import type { Visibility } from "@/lib/database.types";
 
 const DEFAULT_POST_LIMIT = 20;
@@ -44,51 +50,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from("posts")
-      .select(
-        `
-        id,
-        user_id,
-        content,
-        visibility,
-        edited,
-        created_at,
-        updated_at,
-        profiles:profiles!posts_user_id_fkey (
-          id,
-          username,
-          display_name,
-          avatar_url,
-          is_verified
-        ),
-        post_media (
-          id,
-          file_url,
-          file_type,
-          file_size,
-          storage_bucket,
-          created_at
-        ),
-        likes (
-          id,
-          user_id,
-          reaction_type,
-          created_at
-        ),
-        comments (
-          id,
-          user_id,
-          text,
-          parent_id,
-          created_at,
-          profiles:profiles!comments_user_id_fkey (
-            id,
-            username,
-            display_name,
-            avatar_url
-          )
-        )
-      `
-      )
+      .select<PostWithRelations>(POST_WITH_RELATIONS)
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -96,20 +58,9 @@ export async function GET(request: NextRequest) {
       throw error;
     }
 
-    const posts = (data ?? []).map((post) => {
-      const likes = Array.isArray(post.likes) ? post.likes : [];
-      const comments = Array.isArray(post.comments) ? post.comments : [];
-      const shape = {
-        ...post,
-        likes_count: likes.length,
-        comments_count: comments.length,
-        has_liked: likes.some((like) => like.user_id === currentUserId),
-      };
-
-      return shape;
+    return NextResponse.json({
+      posts: toFeedPosts(data, currentUserId),
     });
-
-    return NextResponse.json({ posts });
   } catch (error) {
     return handleRouteError(error);
   }
@@ -172,51 +123,7 @@ export async function POST(request: NextRequest) {
 
     const { data: fullPost, error: fetchError } = await supabase
       .from("posts")
-      .select(
-        `
-        id,
-        user_id,
-        content,
-        visibility,
-        edited,
-        created_at,
-        updated_at,
-        profiles:profiles!posts_user_id_fkey (
-          id,
-          username,
-          display_name,
-          avatar_url,
-          is_verified
-        ),
-        post_media (
-          id,
-          file_url,
-          file_type,
-          file_size,
-          storage_bucket,
-          created_at
-        ),
-        likes (
-          id,
-          user_id,
-          reaction_type,
-          created_at
-        ),
-        comments (
-          id,
-          user_id,
-          text,
-          parent_id,
-          created_at,
-          profiles:profiles!comments_user_id_fkey (
-            id,
-            username,
-            display_name,
-            avatar_url
-          )
-        )
-      `
-      )
+      .select<PostWithRelations>(POST_WITH_RELATIONS)
       .eq("id", post.id)
       .single();
 
@@ -224,16 +131,8 @@ export async function POST(request: NextRequest) {
       throw fetchError;
     }
 
-    const likes = Array.isArray(fullPost.likes) ? fullPost.likes : [];
-    const comments = Array.isArray(fullPost.comments) ? fullPost.comments : [];
-
     return NextResponse.json({
-      post: {
-        ...fullPost,
-        likes_count: likes.length,
-        comments_count: comments.length,
-        has_liked: false,
-      },
+      post: toFeedPost(fullPost, user.id),
     });
   } catch (error) {
     return handleRouteError(error);

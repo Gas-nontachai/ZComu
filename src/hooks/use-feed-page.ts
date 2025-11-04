@@ -6,44 +6,13 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { apiFetch } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/error";
 import type { Visibility } from "@/lib/database.types";
-import type {
-  ApiPost,
-  Attachment,
-  FeedComment,
-  FeedPost,
-} from "@/types";
+import type { Attachment, FeedComment, FeedPost } from "@/types";
 
 function getRandomId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
   return Math.random().toString(36).slice(2);
-}
-
-function hydratePost(raw: ApiPost, userId: string | null): FeedPost {
-  const likes = Array.isArray(raw.likes) ? raw.likes : [];
-  const comments = Array.isArray(raw.comments) ? raw.comments : [];
-  const likesCount =
-    typeof raw.likes_count === "number" ? raw.likes_count : likes.length;
-  const commentsCount =
-    typeof raw.comments_count === "number"
-      ? raw.comments_count
-      : comments.length;
-  const hasLiked =
-    typeof raw.has_liked === "boolean"
-      ? raw.has_liked
-      : likes.some((like) => like.user_id === userId);
-
-  return {
-    ...raw,
-    post_media: Array.isArray(raw.post_media) ? raw.post_media : [],
-    likes,
-    comments,
-    likes_count: likesCount,
-    comments_count: commentsCount,
-    has_liked: hasLiked,
-    is_owner: raw.user_id === userId,
-  };
 }
 
 export function useFeedPage() {
@@ -57,8 +26,6 @@ export function useFeedPage() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
-
-  const currentUserId = user?.id ?? null;
 
   const canPublish = useMemo(
     () =>
@@ -78,16 +45,14 @@ export function useFeedPage() {
     setIsFetching(true);
     setFetchError(null);
     try {
-      const response = await apiFetch<{ posts: ApiPost[] }>("/api/posts");
-      setPosts(
-        (response.posts ?? []).map((post) => hydratePost(post, currentUserId))
-      );
+      const response = await apiFetch<{ posts: FeedPost[] }>("/api/posts");
+      setPosts(response.posts ?? []);
     } catch (error: unknown) {
       setFetchError(getErrorMessage(error, "Failed to load posts"));
     } finally {
       setIsFetching(false);
     }
-  }, [currentUserId]);
+  }, []);
 
   useEffect(() => {
     if (!loadingAuth) {
@@ -183,7 +148,7 @@ export function useFeedPage() {
     setIsPublishing(true);
 
     try {
-      const response = await apiFetch<{ post: ApiPost }>("/api/posts", {
+      const response = await apiFetch<{ post: FeedPost }>("/api/posts", {
         method: "POST",
         body: JSON.stringify({
           content: content.trim(),
@@ -199,8 +164,7 @@ export function useFeedPage() {
         }),
       });
 
-      const hydrated = hydratePost(response.post, currentUserId);
-      setPosts((prev) => [hydrated, ...prev]);
+      setPosts((prev) => [response.post, ...prev]);
       setContent("");
       setAttachments([]);
       setVisibility("public");
@@ -209,7 +173,7 @@ export function useFeedPage() {
     } finally {
       setIsPublishing(false);
     }
-  }, [attachments, content, currentUserId, visibility]);
+  }, [attachments, content, visibility]);
 
   const handleToggleLike = useCallback(
     async (postId: string, hasLiked: boolean) => {

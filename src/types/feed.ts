@@ -1,15 +1,19 @@
 import type {
   CommentsRow,
+  LikesRow,
   PostMediaRow,
   PostsRow,
   ProfilesRow,
-  ReactionType,
-  Visibility,
 } from "@/lib/database.types";
 
 export type ProfileSummary = Pick<
   ProfilesRow,
   "id" | "username" | "display_name" | "avatar_url" | "is_verified"
+>;
+
+export type LikeSummary = Pick<
+  LikesRow,
+  "id" | "user_id" | "reaction_type" | "created_at"
 >;
 
 export type FeedComment = CommentsRow & {
@@ -19,12 +23,7 @@ export type FeedComment = CommentsRow & {
 export type FeedPost = PostsRow & {
   profiles: ProfileSummary | null;
   post_media: PostMediaRow[];
-  likes: Array<{
-    id: string;
-    user_id: string;
-    reaction_type: ReactionType | null;
-    created_at: string;
-  }>;
+  likes: LikeSummary[];
   comments: FeedComment[];
   likes_count: number;
   comments_count: number;
@@ -46,19 +45,4 @@ export type Attachment = {
   error?: string;
 };
 
-export type ApiPost = {
-  id: string;
-  user_id: string;
-  content?: string | null;
-  visibility?: Visibility;
-  edited?: boolean | null;
-  created_at: string;
-  updated_at: string;
-  profiles?: ProfileSummary | null;
-  post_media?: PostMediaRow[] | null;
-  likes?: FeedPost["likes"] | null;
-  comments?: FeedComment[] | null;
-  likes_count?: number;
-  comments_count?: number;
-  has_liked?: boolean;
-};
+export type ApiPost = FeedPost;

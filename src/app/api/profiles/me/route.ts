@@ -5,7 +5,18 @@ import {
   handleRouteError,
   HttpError,
 } from "@/lib/api-helpers";
-import { createRouteSupabaseClient } from "@/lib/supabase-server";
+import { bootstrapProfile } from "@/lib/profile-bootstrap";
+import { createRouteSupabaseClient, createServiceSupabaseClient } from "@/lib/supabase-server";
+import type { PostgrestError } from "@supabase/supabase-js";
+
+function isNotFoundError(error: unknown): error is PostgrestError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as PostgrestError).code === "PGRST116"
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,6 +38,32 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (error) {
+      if (isNotFoundError(error)) {
+        let bootstrapClient;
+        try {
+          bootstrapClient = createServiceSupabaseClient();
+        } catch (serviceError) {
+          if (
+            serviceError instanceof Error &&
+            serviceError.message === "SUPABASE_SERVICE_ROLE_KEY is not configured"
+          ) {
+            throw new HttpError(
+              500,
+              "SUPABASE_SERVICE_ROLE_KEY must be configured to bootstrap profiles"
+            );
+          }
+          throw serviceError;
+        }
+
+        const profile = await bootstrapProfile({
+          supabase: bootstrapClient,
+          id: user.id,
+          email: user.email,
+          metadata: (user.user_metadata ?? null) as Record<string, unknown> | null,
+        });
+
+        return NextResponse.json({ profile });
+      }
       throw error;
     }
 

@@ -125,7 +125,7 @@ export interface LikesRow {
   id: string;
   post_id: string;
   user_id: string;
-  reaction_type: string | null;
+  reaction_type: ReactionType | null;
   created_at: string;
 }
 
@@ -133,7 +133,7 @@ export interface LikesInsert {
   id?: string;
   post_id: string;
   user_id: string;
-  reaction_type?: string | null;
+  reaction_type?: ReactionType | null;
   created_at?: string;
 }
 
@@ -240,4 +240,3 @@ export interface Database {
     CompositeTypes: Record<string, unknown>;
   };
 }
-

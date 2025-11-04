@@ -6,6 +6,10 @@ import {
   HttpError,
 } from "@/lib/api-helpers";
 import { createRouteSupabaseClient } from "@/lib/supabase-server";
+import {
+  toFeedComment,
+  type CommentWithProfile,
+} from "@/lib/post-serializers";
 
 type CreateCommentPayload = {
   text?: string;
@@ -32,7 +36,7 @@ export async function GET(
 
     const { data, error } = await supabase
       .from("comments")
-      .select(
+      .select<CommentWithProfile>(
         `
         id,
         post_id,
@@ -44,7 +48,8 @@ export async function GET(
           id,
           username,
           display_name,
-          avatar_url
+          avatar_url,
+          is_verified
         )
       `
       )
@@ -55,7 +60,11 @@ export async function GET(
       throw error;
     }
 
-    return NextResponse.json({ comments: data ?? [] });
+    return NextResponse.json({
+      comments: Array.isArray(data)
+        ? data.map((comment) => toFeedComment(comment))
+        : [],
+    });
   } catch (error) {
     return handleRouteError(error);
   }
@@ -94,7 +103,7 @@ export async function POST(
         text,
         parent_id: payload.parent_id ?? null,
       })
-      .select(
+      .select<CommentWithProfile>(
         `
         id,
         post_id,
@@ -106,7 +115,8 @@ export async function POST(
           id,
           username,
           display_name,
-          avatar_url
+          avatar_url,
+          is_verified
         )
       `
       )
@@ -116,7 +126,9 @@ export async function POST(
       throw error;
     }
 
-    return NextResponse.json({ comment: data });
+    return NextResponse.json({
+      comment: toFeedComment(data),
+    });
   } catch (error) {
     return handleRouteError(error);
   }
